@@ -116,14 +116,29 @@ class Refract:
             return preferred
         if shutil.which("refract"):
             return "refract"
-        # Fall back to npx
-        return "npx"
+        if shutil.which("npx"):
+            return "npx"
+        if shutil.which("node"):
+            return "npx"
+        raise RefractError(
+            "The Refract CLI is required but not found.\n"
+            "Install it: npm install -g @refract-org/cli\n"
+            "Or ensure Node.js is installed: https://nodejs.org"
+        )
 
     def _run(self, args: list[str]) -> str:
         cmd = [self._binary, *args]
         if self._binary == "npx":
             cmd = ["npx", "@refract-org/cli", *args]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        except FileNotFoundError:
+            raise RefractError(
+                "The Refract CLI is required but not found.\n"
+                "Install it: npm install -g @refract-org/cli\n"
+                "Or ensure Node.js is installed: https://nodejs.org\n"
+                "Docs: https://refract-org.github.io/refract-docs/install/"
+            )
         if result.returncode != 0:
             raise RefractError(
                 f"refract CLI exited with code {result.returncode}: {result.stderr.strip()}"

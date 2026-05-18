@@ -2,8 +2,8 @@
   "$schema": "https://opencode.ai/config.json",
   "model": "deepseek/deepseek-v4-flash",
   "small_model": "deepseek/deepseek-v4-flash",
-  "instructions": "README.md",
-  "skills": ["refract"],
+  "instructions": "AGENTS.md",
+  "skills": ["refract-maintainer"],
   "permissions": {
     "allow": [
       "read",

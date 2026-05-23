@@ -2,6 +2,29 @@
 
 Python SDK for [Refract](https://github.com/refract-org/refract) — wraps the Refract CLI via subprocess.
 
+## Quick Start
+
+```bash
+pip install -e ".[dev]"
+hatch build    # Build wheel
+hatch test     # Run pytest
+```
+
+## Repository Structure
+
+- `src/refract/` — Python package source
+- `tests/` — pytest test suite
+- `pyproject.toml` — Project config (Hatch)
+- `AGENTS.md` — This file
+
+## Tooling
+
+- **Runtime:** Python 3.10+
+- **Package manager:** Hatch
+- **Tests:** pytest
+- **CI:** GitHub Actions (ci.yml)
+- **Commit style:** Conventional Commits
+
 ## Domain Boundary
 
 This package wraps the `@refract-org/cli` JavaScript package. It does NOT add model logic, interpretation, or domain-specific judgment. It provides typed Python dataclasses and a convenience API over the CLI's JSON output.

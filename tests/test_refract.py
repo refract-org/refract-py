@@ -246,9 +246,9 @@ def test_find_binary_explicit():
 
 
 def test_find_binary_nonexistent():
-    """_find_binary falls back to npx when preferred doesn't exist."""
+    """_find_binary ignores a missing preferred binary and uses an available CLI."""
     binary = Refract._find_binary("nonexistent-binary-xyz")
-    assert binary == "npx"
+    assert binary in ("refract", "npx")
 
 
 def test_find_binary_none():

@@ -1,5 +1,9 @@
 # refract-py
 
+<p align="center">
+  <img src="docs/assets/refract-py-demo.gif" alt="refract-py demo animation" width="720">
+</p>
+
 Python SDK for [Refract](https://github.com/refract-org/refract) — the open claim-history layer for public knowledge.
 
 ```bash

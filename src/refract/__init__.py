@@ -3,6 +3,7 @@ Python SDK for Refract — wraps the Refract CLI via subprocess.
 """
 
 import json
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -112,7 +113,7 @@ class Refract:
 
     @staticmethod
     def _find_binary(preferred: str | None) -> str:
-        if preferred and shutil.which(preferred):
+        if preferred and (shutil.which(preferred) or os.path.exists(preferred)):
             return preferred
         if shutil.which("refract"):
             return "refract"
@@ -130,6 +131,8 @@ class Refract:
         cmd = [self._binary, *args]
         if self._binary == "npx":
             cmd = ["npx", "@refract-org/cli", *args]
+        elif self._binary.endswith(".js"):
+            cmd = ["node", self._binary, *args]
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         except FileNotFoundError:

@@ -16,11 +16,22 @@ Usage:
         print(doc.page_content[:100], doc.metadata["event_type"], doc.metadata["stability_score"])
 """
 
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional
 
 from langchain_core.documents import Document
 from langchain_core.document_loaders import BaseLoader
 from refract import Refract
+
+
+def _value(obj: Any, key: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def _first_fact(event: Any) -> Any:
+    facts = _value(event, "deterministicFacts", []) or []
+    return facts[0] if facts else None
 
 
 class RefractLoader(BaseLoader):
@@ -55,16 +66,17 @@ class RefractLoader(BaseLoader):
     def _compute_stability(self, events: list) -> dict[str, float]:
         scores: dict[str, list[float]] = {}
         for e in events:
-            cid = e.get("claimId") or e.get("eventType", "") + "_" + str(e.get("toRevisionId", 0))
+            cid = _value(e, "claimId") or _value(e, "eventType", "") + "_" + str(_value(e, "toRevisionId", 0))
             scores.setdefault(cid, [])
             base = 0.8
-            if e.get("eventType") in ("revert_detected", "edit_cluster_detected"):
+            event_type = _value(e, "eventType")
+            if event_type in ("revert_detected", "edit_cluster_detected"):
                 base = 0.2
-            elif e.get("eventType") == "sentence_removed":
+            elif event_type == "sentence_removed":
                 base = 0.0
-            elif e.get("eventType") == "sentence_modified":
+            elif event_type == "sentence_modified":
                 base = 0.5
-            elif e.get("eventType") == "sentence_first_seen":
+            elif event_type == "sentence_first_seen":
                 base = 0.9
             scores[cid].append(base)
         return {cid: sum(v) / len(v) for cid, v in scores.items()}
@@ -74,25 +86,26 @@ class RefractLoader(BaseLoader):
         stability = self._compute_stability(events)
 
         for e in events:
-            fact = (e.get("deterministicFacts") or [None])[0]
-            cid = e.get("claimId") or e.get("eventType", "") + "_" + str(e.get("toRevisionId", 0))
+            fact = _first_fact(e)
+            provenance = _value(fact, "provenance", {}) or {}
+            cid = _value(e, "claimId") or _value(e, "eventType", "") + "_" + str(_value(e, "toRevisionId", 0))
             score = stability.get(cid, 0.5)
             if score < self.min_stability:
                 continue
 
-            content = e.get("after") or e.get("before") or e.get("eventType", "")
+            content = _value(e, "after") or _value(e, "before") or _value(e, "eventType", "")
             metadata = {
                 "source": f"wikipedia/{self.page}",
-                "event_type": e.get("eventType"),
-                "from_revision_id": e.get("fromRevisionId"),
-                "to_revision_id": e.get("toRevisionId"),
-                "section": e.get("section", ""),
-                "timestamp": e.get("timestamp"),
-                "schema_version": e.get("schemaVersion"),
-                "analyzer": fact.get("provenance", {}).get("analyzer") if fact else None,
-                "analyzer_version": fact.get("provenance", {}).get("version") if fact else None,
+                "event_type": _value(e, "eventType"),
+                "from_revision_id": _value(e, "fromRevisionId"),
+                "to_revision_id": _value(e, "toRevisionId"),
+                "section": _value(e, "section", ""),
+                "timestamp": _value(e, "timestamp"),
+                "schema_version": _value(e, "schemaVersion"),
+                "analyzer": _value(provenance, "analyzer"),
+                "analyzer_version": _value(provenance, "version"),
                 "stability_score": round(score, 3),
-                "layer": e.get("layer"),
+                "layer": _value(e, "layer"),
                 "claim_id": cid,
             }
             yield Document(page_content=content, metadata=metadata)

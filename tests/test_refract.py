@@ -271,6 +271,91 @@ def test_refract_constructor_explicit():
     assert r._binary == "echo"
 
 
+def test_refract_constructor_explicit_js_path(tmp_path):
+    """Explicit local CLI JavaScript paths should not fall back to npx."""
+    cli = tmp_path / "cli.js"
+    cli.write_text("#!/usr/bin/env node\n")
+
+    r = Refract(binary=str(cli))
+
+    assert r._binary == str(cli)
+
+
+def test_run_uses_node_for_js_binary(monkeypatch, tmp_path):
+    """A local built CLI file is invoked with node even when not executable."""
+    cli = tmp_path / "cli.js"
+    cli.write_text("#!/usr/bin/env node\n")
+    r = Refract(binary=str(cli))
+
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    r._run(["--version"])
+
+    assert captured["cmd"] == ["node", str(cli), "--version"]
+
+
 def test_refract_truthy():
     """Placeholder for CLI integration tests (requires refract CLI installed)."""
     assert True
+
+
+def test_analyze_parses_ndjson(monkeypatch):
+    """analyze() should parse the CLI's machine-readable JSON output."""
+    raw_event = {
+        "eventType": "revert_detected",
+        "fromRevisionId": 10,
+        "toRevisionId": 11,
+        "after": "reverted vandalism",
+        "deterministicFacts": [],
+    }
+
+    def fake_run(self, args):
+        assert args == ["analyze", "Earth", "--depth", "brief", "--json"]
+        return json.dumps(raw_event) + "\n"
+
+    monkeypatch.setattr(Refract, "_run", fake_run)
+    events = Refract(binary="echo").analyze("Earth")
+
+    assert len(events) == 1
+    assert events[0].eventType == "revert_detected"
+    assert events[0].toRevisionId == 11
+
+
+def test_langchain_loader_accepts_typed_events(monkeypatch):
+    """The LangChain loader should handle EvidenceEvent dataclasses returned by export()."""
+    pytest = __import__("pytest")
+    pytest.importorskip("langchain_core")
+
+    from refract_langchain import RefractLoader
+
+    event = EvidenceEvent(
+        eventType="sentence_first_seen",
+        fromRevisionId=1,
+        toRevisionId=2,
+        after="A sourced claim.",
+        section="Lead",
+        deterministicFacts=[
+            DeterministicFact(
+                fact="sentence_first_seen",
+                provenance=FactProvenance(analyzer="sentence-tracker", version="0.5.0"),
+            )
+        ],
+        layer="observed",
+        timestamp="2026-01-01T00:00:00Z",
+    )
+
+    monkeypatch.setattr(Refract, "export", lambda self, page, format="ndjson": [event])
+    loader = RefractLoader(page="Earth")
+
+    docs = list(loader.lazy_load())
+
+    assert len(docs) == 1
+    assert docs[0].page_content == "A sourced claim."
+    assert docs[0].metadata["event_type"] == "sentence_first_seen"
+    assert docs[0].metadata["analyzer"] == "sentence-tracker"
+    assert docs[0].metadata["stability_score"] == 0.9

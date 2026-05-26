@@ -3,3 +3,11 @@ __pycache__/
 dist/
 *.egg-info/
 .DS_Store
+
+# Tooling
+.cmux/
+.opencode/
+.sisyphus/
+.codex/
+.agent/
+.wrangler/

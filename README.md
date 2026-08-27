@@ -12,7 +12,7 @@ Python SDK for [Refract](https://github.com/refract-org/refract) — the open cl
 </p>
 
 ```bash
-pip install refract-py
+pip install git+https://github.com/refract-org/refract-py.git  # not on PyPI yet
 ```
 
 Requires the [Refract CLI](https://github.com/refract-org/refract):

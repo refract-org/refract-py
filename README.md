@@ -1,15 +1,6 @@
 # refract-py
 
-<p align="center">
-  <img src="docs/assets/refract-py-demo.gif" alt="refract-py demo animation" width="720">
-</p>
-
 Python SDK for [Refract](https://github.com/refract-org/refract) — the open claim-history layer for public knowledge.
-
-<p align="center">
-  <img src="docs/assets/refract-py-cli.png" alt="refract-py install and analyze workflow" width="400">
-  <img src="docs/assets/refract-py-pkg.png" alt="refract-py package listing on PyPI" width="400">
-</p>
 
 ```bash
 pip install git+https://github.com/refract-org/refract-py.git  # not on PyPI yet

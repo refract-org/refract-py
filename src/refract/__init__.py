@@ -9,7 +9,14 @@ import subprocess
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["Refract", "EvidenceEvent", "DeterministicFact", "FactProvenance"]
+__all__ = [
+    "Refract",
+    "EvidenceEvent",
+    "DeterministicFact",
+    "FactProvenance",
+    "compute_survival_records",
+    "to_networkx",
+]
 
 
 @dataclass
@@ -92,6 +99,58 @@ def _flatten_event(e: EvidenceEvent) -> dict[str, Any]:
     }
 
 
+def compute_survival_records(events: list[EvidenceEvent]) -> list[dict[str, Any]]:
+    """Transform sentence/claim events into time-to-event duration records for survival analysis."""
+    from datetime import datetime
+    records = []
+    first_seen: dict[str, str] = {}
+    for e in sorted(events, key=lambda x: x.timestamp or ""):
+        key = (e.section or "") + "::" + (e.after or e.before)[:60]
+        if e.eventType in ("sentence_first_seen", "sentence_reintroduced"):
+            first_seen[key] = e.timestamp
+        elif e.eventType == "sentence_removed" and key in first_seen:
+            start_ts = first_seen.pop(key)
+            duration_days = None
+            if start_ts and e.timestamp:
+                try:
+                    t0 = datetime.fromisoformat(start_ts.replace("Z", "+00:00"))
+                    t1 = datetime.fromisoformat(e.timestamp.replace("Z", "+00:00"))
+                    duration_days = max(0.0, (t1 - t0).total_seconds() / 86400.0)
+                except Exception:
+                    pass
+            records.append({
+                "statement_key": key,
+                "section": e.section,
+                "start_time": start_ts,
+                "end_time": e.timestamp,
+                "duration_days": duration_days,
+                "event_observed": 1,
+            })
+    for key, start_ts in first_seen.items():
+        records.append({
+            "statement_key": key,
+            "section": key.split("::")[0],
+            "start_time": start_ts,
+            "end_time": None,
+            "duration_days": None,
+            "event_observed": 0,
+        })
+    return records
+
+
+def to_networkx(events: list[EvidenceEvent]) -> Any:
+    """Export citation and transition events to a NetworkX DiGraph."""
+    import networkx as nx  # type: ignore
+    G = nx.DiGraph()
+    for e in events:
+        if e.fromRevisionId and e.toRevisionId:
+            G.add_edge(f"rev:{e.fromRevisionId}", f"rev:{e.toRevisionId}", eventType=e.eventType, timestamp=e.timestamp)
+        for fact in e.deterministicFacts:
+            if fact.detail and "url=" in fact.detail:
+                G.add_edge(f"rev:{e.toRevisionId}", fact.detail, relation="cites")
+    return G
+
+
 class RefractError(Exception):
     """Raised when the Refract CLI returns a non-zero exit code."""
     pass
@@ -149,7 +208,12 @@ class Refract:
         return result.stdout
 
     def analyze(
-        self, page: str, depth: str = "brief", as_frame: bool = False, **kwargs: str
+        self,
+        page: str,
+        depth: str = "brief",
+        as_frame: bool = False,
+        as_polars: bool = False,
+        **kwargs: str,
     ) -> list[EvidenceEvent] | Any:
         """Analyze a Wikipedia page.
 
@@ -157,10 +221,11 @@ class Refract:
             page: Page title.
             depth: Analysis depth (brief, detailed, forensic).
             as_frame: If True, return a pandas DataFrame (requires pandas).
+            as_polars: If True, return a polars DataFrame (requires polars).
             **kwargs: Additional CLI flags (api, since, etc.).
 
         Returns:
-            List of EvidenceEvent objects, or a DataFrame if as_frame=True.
+            List of EvidenceEvent objects, or a DataFrame if as_frame/as_polars=True.
         """
         args = ["analyze", page, "--depth", depth, "--json"]
         for k, v in kwargs.items():
@@ -171,6 +236,9 @@ class Refract:
         for line in stdout.strip().split("\n"):
             if line:
                 events.append(_parse_event(json.loads(line)))
+        if as_polars:
+            import polars as pl  # type: ignore
+            return pl.DataFrame([_flatten_event(e) for e in events])
         if as_frame:
             import pandas as pd  # type: ignore
             return pd.DataFrame([_flatten_event(e) for e in events])
@@ -182,6 +250,7 @@ class Refract:
         format: str = "ndjson",
         flatten: bool = False,
         as_frame: bool = False,
+        as_polars: bool = False,
         **kwargs: str,
     ) -> list[EvidenceEvent] | Any:
         """Export analysis results.
@@ -191,10 +260,11 @@ class Refract:
             format: Output format (json, csv, ndjson).
             flatten: Flatten nested fields (for CSV).
             as_frame: If True, return a pandas DataFrame.
+            as_polars: If True, return a polars DataFrame.
             **kwargs: Additional CLI flags.
 
         Returns:
-            List of EvidenceEvent objects, or a DataFrame if as_frame=True.
+            List of EvidenceEvent objects, or a DataFrame if as_frame/as_polars=True.
         """
         args = ["export", page, "--format", format]
         if flatten:
@@ -207,6 +277,9 @@ class Refract:
             for line in stdout.strip().split("\n"):
                 if line:
                     events.append(_parse_event(json.loads(line)))
+            if as_polars:
+                import polars as pl  # type: ignore
+                return pl.DataFrame([_flatten_event(e) for e in events])
             if as_frame:
                 import pandas as pd
                 return pd.DataFrame([_flatten_event(e) for e in events])

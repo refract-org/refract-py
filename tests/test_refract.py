@@ -359,3 +359,54 @@ def test_langchain_loader_accepts_typed_events(monkeypatch):
     assert docs[0].metadata["event_type"] == "sentence_first_seen"
     assert docs[0].metadata["analyzer"] == "sentence-tracker"
     assert docs[0].metadata["stability_score"] == 0.9
+
+
+def test_compute_survival_records():
+    from refract import compute_survival_records, EvidenceEvent
+
+    events = [
+        EvidenceEvent(
+            eventType="sentence_first_seen",
+            fromRevisionId=1,
+            toRevisionId=2,
+            section="Summary",
+            after="Treatment protocol shows positive response.",
+            timestamp="2026-01-01T00:00:00Z",
+        ),
+        EvidenceEvent(
+            eventType="sentence_removed",
+            fromRevisionId=2,
+            toRevisionId=3,
+            section="Summary",
+            before="Treatment protocol shows positive response.",
+            timestamp="2026-01-11T00:00:00Z",
+        ),
+    ]
+
+    records = compute_survival_records(events)
+    assert len(records) == 1
+    assert records[0]["event_observed"] == 1
+    assert records[0]["duration_days"] == 10.0
+    assert records[0]["section"] == "Summary"
+
+
+def test_to_networkx():
+    pytest = __import__("pytest")
+    pytest.importorskip("networkx")
+    from refract import to_networkx, EvidenceEvent, DeterministicFact
+
+    events = [
+        EvidenceEvent(
+            eventType="citation_added",
+            fromRevisionId=10,
+            toRevisionId=20,
+            timestamp="2026-01-01T00:00:00Z",
+            deterministicFacts=[
+                DeterministicFact(fact="citation_added", detail="url=https://example.org/study")
+            ],
+        )
+    ]
+
+    g = to_networkx(events)
+    assert g.has_edge("rev:10", "rev:20")
+    assert g.has_edge("rev:20", "url=https://example.org/study")

@@ -100,7 +100,12 @@ def _flatten_event(e: EvidenceEvent) -> dict[str, Any]:
 
 
 def compute_survival_records(events: list[EvidenceEvent]) -> list[dict[str, Any]]:
-    """Transform sentence/claim events into time-to-event duration records for survival analysis."""
+    """Turn sentence events into time-to-event records for survival analysis.
+
+    One record per span from sentence_first_seen or sentence_reintroduced to
+    sentence_removed, matched on section and the first 60 characters of the
+    sentence. A span with no removal is right-censored (event_observed 0).
+    """
     from datetime import datetime
     records = []
     first_seen: dict[str, str] = {}
@@ -139,7 +144,16 @@ def compute_survival_records(events: list[EvidenceEvent]) -> list[dict[str, Any]
 
 
 def to_networkx(events: list[EvidenceEvent]) -> Any:
-    """Export citation and transition events to a NetworkX DiGraph."""
+    """Build a NetworkX DiGraph of the revision transitions in events.
+
+    Each event adds an edge rev:<fromRevisionId> -> rev:<toRevisionId> carrying
+    its eventType and timestamp; a later event on the same pair overwrites them.
+    A fact whose detail contains "url=" also adds a "cites" edge from the
+    revision to that detail. No analyzer emits a citation URL as a fact, but at
+    forensic depth the full_wikitext_before/after facts contain "url=" whenever
+    the page cites a web source, and each becomes a node holding a revision's
+    whole wikitext. Pass brief or detailed events for a graph of transitions.
+    """
     import networkx as nx  # type: ignore
     G = nx.DiGraph()
     for e in events:

@@ -1,5 +1,19 @@
 # refract-py
 
+> **This repository has moved.** The adapter is now
+> [`clients/python`](https://github.com/refract-org/refract/tree/main/clients/python) in
+> [refract-org/refract](https://github.com/refract-org/refract), imported with
+> its full history. Install it from there:
+>
+> ```bash
+> pip install "git+https://github.com/refract-org/refract.git#subdirectory=clients/python"
+> ```
+>
+> That version also ships `refract_eval` and `refract_langchain`, which the wheel
+> built from this repository leaves out. The install below still works, but it
+> stays at this repository's last commit. Open issues and pull requests in
+> refract-org/refract; this repository is kept read-only for its history.
+
 Python SDK for [Refract](https://github.com/refract-org/refract) — the open claim-history layer for public knowledge.
 
 ```bash
